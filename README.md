@@ -1,3 +1,7 @@
+I forked this  project, and try to update it so it can connect to multi-servers, so I can use more bandwidth,
+I hope it can take effects, ^_~
+2012.4.21 00:00
+______________________________________________________________________________________
 shadowsocks
 ===========
 
