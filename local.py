@@ -19,9 +19,14 @@
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
+SERVERS = (('xxx.xxx.xx.11', 8499),
+           #('xxx.xxx.xx.98', 8499),
+           ('xxx.xxx.xx.4', 8499),
+           ('xxx.xxx.xx.95', 8499),
+           ('xxx.xxx.xx.97', 8499),
+           ('xxx.xxx.xx.110', 8499),
+    )
 
-SERVER = 'myserver_ip_or_hostname'
-REMOTE_PORT = 8499
 PORT = 1080
 KEY = "foobar!"
 
@@ -33,6 +38,15 @@ import hashlib
 import threading
 import time
 import SocketServer
+
+
+def get_server():
+    servers = SERVERS
+    while 1:
+        for i in servers:
+            yield i
+
+server = get_server()
 
 def get_table(key):
     m = hashlib.md5()
@@ -96,7 +110,7 @@ class Socks5Server(SocketServer.StreamRequestHandler):
         try:
             sock = self.connection
             remote = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            remote.connect((SERVER, REMOTE_PORT))
+            remote.connect(server.next())
             self.handle_tcp(sock, remote)
         except socket.error:
             lock_print('socket error')
