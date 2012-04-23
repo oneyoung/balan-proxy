@@ -23,6 +23,7 @@
 PORT = 8499
 KEY = "foobar!"
 
+import sys
 import socket
 import select
 import SocketServer
@@ -110,8 +111,8 @@ class Socks5Server(SocketServer.StreamRequestHandler):
             print 'socket error'
 
 
-def main():
-    server = ThreadingTCPServer(('', PORT), Socks5Server)
+def main(host=''):
+    server = ThreadingTCPServer((host, PORT), Socks5Server)
     server.allow_reuse_address = True
     print "starting server at port %d ..." % PORT
     server.serve_forever()
@@ -119,4 +120,11 @@ def main():
 if __name__ == '__main__':
     encrypt_table = ''.join(get_table(KEY))
     decrypt_table = string.maketrans(encrypt_table, string.maketrans('', ''))
-    main()
+    arg = sys.argv
+    if len(arg) == 1:
+        host = ''
+        print "Use default host"
+    else:
+        host = arg[1]    
+        print "Use host %s" % host
+    main(host)
