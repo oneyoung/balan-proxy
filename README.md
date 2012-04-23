@@ -1,3 +1,5 @@
+本程序fork自shadowsocks。增加对多个服务端的支持，如果在限制带宽的内网使用，可达到多倍带宽的效果。在下载http资源，及播放在线视频时有显著加速功能。
+
 I forked this  project, and try to update it so it can connect to multi-servers, so I can use more bandwidth,
 I hope it can take effects, ^_~
 2012.4.21 00:00
