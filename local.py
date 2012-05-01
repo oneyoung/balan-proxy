@@ -19,13 +19,21 @@
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
-SERVERS = (('xxx.xxx.xx.11', 8499),
-           #('xxx.xxx.xx.98', 8499),
-           ('xxx.xxx.xx.4', 8499),
-           ('xxx.xxx.xx.95', 8499),
-           ('xxx.xxx.xx.97', 8499),
-           ('xxx.xxx.xx.110', 8499),
-    )
+import os
+SERVERS = [
+        ('xxx.xxx.xx.11', 8499),
+    ]
+
+if os.path.exists('list.txt'):
+        data = open('list.txt').readlines()
+        SERVERS = []
+        item = (i.split(':') for i in data if ':' '#' not in i)
+        while 1:
+            try:
+                i = item.next()
+            except:
+                break                
+            SERVERS.append((i[0], int(i[1])))
 
 PORT = 1080
 KEY = "foobar!"
@@ -108,9 +116,10 @@ class Socks5Server(SocketServer.StreamRequestHandler):
 
     def handle(self):
         try:
+            host = server.next()
             sock = self.connection
             remote = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            remote.connect(server.next())
+            remote.connect(host)
             self.handle_tcp(sock, remote)
         except socket.error:
             lock_print('socket error')
@@ -122,4 +131,5 @@ def main():
     server.serve_forever()
 
 if __name__ == '__main__':
+    print SERVERS
     main()
