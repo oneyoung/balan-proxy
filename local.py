@@ -38,6 +38,7 @@ if os.path.exists('list.txt'):
 PORT = 1080
 KEY = "foobar!"
 
+import sys
 import socket
 import select
 import string
@@ -125,11 +126,20 @@ class Socks5Server(SocketServer.StreamRequestHandler):
             lock_print('socket error')
 
 
-def main():
+def main(host):
     print 'Starting proxy at port %d' % PORT
-    server = ThreadingTCPServer(('', PORT), Socks5Server)
+    server = ThreadingTCPServer((host, PORT), Socks5Server)
     server.serve_forever()
 
 if __name__ == '__main__':
-    print SERVERS
-    main()
+    print 'Servers: '
+    for i in SERVERS:
+        print i
+    arg = sys.argv
+    if len(arg) == 1:
+        host = ''
+        print "Use default host"
+    else:
+        host = arg[1]    
+        print "Use host %s" % host
+    main(host)
