@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python2
 
 # Copyright (c) 2012 clowwindy
 #
@@ -19,25 +19,6 @@
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
-import os
-SERVERS = [
-        ('xxx.xxx.xx.11', 8499),
-    ]
-
-if os.path.exists('list.txt'):
-        data = open('list.txt').readlines()
-        SERVERS = []
-        item = (i.split(':') for i in data if ':' '#' not in i)
-        while 1:
-            try:
-                i = item.next()
-            except:
-                break                
-            SERVERS.append((i[0], int(i[1])))
-
-PORT = 1080
-KEY = "foobar!"
-
 import sys
 import socket
 import select
@@ -49,13 +30,19 @@ import time
 import SocketServer
 
 
-def get_server():
-    servers = SERVERS
-    while 1:
-        for i in servers:
-            yield i
+def load_conf(conf_fname):
+    import json
+    global PORT
+    global KEY
+    global SERVER
 
-server = get_server()
+    f = open(conf_fname)
+    conf = json.load(f, encoding='utf-8')
+    SERVER = (conf['server_addr'], conf['port'])
+    PORT = conf['local_port']
+    KEY = conf['key']
+    f.close()
+
 
 def get_table(key):
     m = hashlib.md5()
@@ -67,10 +54,13 @@ def get_table(key):
         table.sort(lambda x, y: int(a % (ord(x) + i) - a % (ord(y) + i)))
     return table
 
+
+load_conf('config.json')
 encrypt_table = ''.join(get_table(KEY))
 decrypt_table = string.maketrans(encrypt_table, string.maketrans('', ''))
 
 my_lock = threading.Lock()
+
 
 def lock_print(msg):
     my_lock.acquire()
@@ -117,29 +107,29 @@ class Socks5Server(SocketServer.StreamRequestHandler):
 
     def handle(self):
         try:
-            host = server.next()
+            host = SERVER
             sock = self.connection
             remote = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             remote.connect(host)
             self.handle_tcp(sock, remote)
-        except socket.error:
-            lock_print('socket error')
+        except socket.error, e:
+            lock_print('socket error:' + str(e))
 
 
 def main(host):
     print 'Starting proxy at port %d' % PORT
     server = ThreadingTCPServer((host, PORT), Socks5Server)
+    server.request_queue_size = 10
+    server.allow_reuse_address = True
     server.serve_forever()
 
 if __name__ == '__main__':
-    print 'Servers: '
-    for i in SERVERS:
-        print i
+    print 'Servers: ' + str(SERVER)
     arg = sys.argv
     if len(arg) == 1:
         host = ''
         print "Use default host"
     else:
-        host = arg[1]    
+        host = arg[1]
         print "Use host %s" % host
     main(host)
