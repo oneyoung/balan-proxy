@@ -1,0 +1,6 @@
+{
+	"port": 8888,
+	"key": "foobar!",
+	"local_port": 8889,
+	"server_addr": "your-proxy-server.com"
+}
