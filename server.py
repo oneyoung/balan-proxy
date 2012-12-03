@@ -20,9 +20,6 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-PORT = 8499
-KEY = "foobar!"
-
 import sys
 import socket
 import select
@@ -30,6 +27,20 @@ import SocketServer
 import struct
 import string
 import hashlib
+import logging
+
+
+def load_conf(conf_fname):
+    import json
+    global PORT
+    global KEY
+
+    f = open(conf_fname)
+    conf = json.load(f, encoding='utf-8')
+    PORT = conf['port']
+    KEY = conf['key']
+    f.close()
+
 
 def get_table(key):
     m = hashlib.md5()
@@ -72,7 +83,7 @@ class Socks5Server(SocketServer.StreamRequestHandler):
 
     def handle(self):
         try:
-            print 'socks connection from ', self.client_address
+            logging.info('socks connection from ', self.client_address)
             sock = self.connection
             sock.recv(262)
             self.send_encrpyt(sock, "\x05\x00")
@@ -94,12 +105,11 @@ class Socks5Server(SocketServer.StreamRequestHandler):
                     remote = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
                     remote.connect((addr, port[0]))
                     local = remote.getsockname()
-                    reply += socket.inet_aton(local[0]) + struct.pack(">H",
-                        local[1])
-                    print 'Tcp connect to', addr, port[0]
+                    reply += socket.inet_aton(local[0]) + struct.pack(">H", local[1])
+                    logging.debug('Tcp connect to', addr, port[0])
                 else:
-                    reply = "\x05\x07\x00\x01" # Command not supported
-                    print 'command not supported'
+                    reply = "\x05\x07\x00\x01"  # Command not supported
+                    logging.error('command not supported')
             except socket.error:
                 # Connection refused
                 reply = '\x05\x05\x00\x01\x00\x00\x00\x00\x00\x00'
@@ -107,24 +117,29 @@ class Socks5Server(SocketServer.StreamRequestHandler):
             if reply[1] == '\x00':
                 if mode == 1:
                     self.handle_tcp(sock, remote)
-        except socket.error:
-            print 'socket error'
+        except socket.error, e:
+            logging.error('socket error: ' + str(e))
 
 
 def main(host=''):
     server = ThreadingTCPServer((host, PORT), Socks5Server)
     server.allow_reuse_address = True
-    print "starting server at port %d ..." % PORT
+    logging.info("starting server at port %d ..." % PORT)
     server.serve_forever()
 
+
 if __name__ == '__main__':
+    load_conf('config.json')
     encrypt_table = ''.join(get_table(KEY))
     decrypt_table = string.maketrans(encrypt_table, string.maketrans('', ''))
+    # logging init
+    logging.basicConfig(filename="/tmp/proxy.log", level=logging.DEBUG,
+                        format='%(asctime)s %(levelname)s: %(message)s')
     arg = sys.argv
     if len(arg) == 1:
         host = ''
-        print "Use default host"
+        logging.info("Use default host")
     else:
-        host = arg[1]    
-        print "Use host %s" % host
+        host = arg[1]
+        logging.info("Use host %s" % host)
     main(host)
