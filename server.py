@@ -83,7 +83,7 @@ class Socks5Server(SocketServer.StreamRequestHandler):
 
     def handle(self):
         try:
-            logging.info('socks connection from ', self.client_address)
+            logging.info('socks connection from ' + str(self.client_address))
             sock = self.connection
             sock.recv(262)
             self.send_encrpyt(sock, "\x05\x00")
@@ -106,7 +106,7 @@ class Socks5Server(SocketServer.StreamRequestHandler):
                     remote.connect((addr, port[0]))
                     local = remote.getsockname()
                     reply += socket.inet_aton(local[0]) + struct.pack(">H", local[1])
-                    logging.debug('Tcp connect to', addr, port[0])
+                    logging.debug('Tcp connect to' + str(addr) + str(port[0]))
                 else:
                     reply = "\x05\x07\x00\x01"  # Command not supported
                     logging.error('command not supported')
@@ -124,6 +124,7 @@ class Socks5Server(SocketServer.StreamRequestHandler):
 def main(host=''):
     server = ThreadingTCPServer((host, PORT), Socks5Server)
     server.allow_reuse_address = True
+    server.request_queue_size = 20
     logging.info("starting server at port %d ..." % PORT)
     server.serve_forever()
 
