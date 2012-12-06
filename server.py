@@ -29,6 +29,9 @@ import string
 import hashlib
 import logging
 
+MAX_CON = 20
+connected = 0
+
 
 def load_conf(conf_fname):
     import json
@@ -71,6 +74,7 @@ class Socks5Server(SocketServer.StreamRequestHandler):
                         break
         finally:
             remote.close()
+            logging.info('[%d/%d] <== %s' % (connected, MAX_CON, self.conn_str))
 
     def encrypt(self, data):
         return data.translate(encrypt_table)
@@ -82,8 +86,11 @@ class Socks5Server(SocketServer.StreamRequestHandler):
         sock.send(self.encrypt(data))
 
     def handle(self):
+        global connected
         try:
-            logging.info('socks connection from ' + str(self.client_address))
+            connected += 1
+            self.conn_str = "%s:%d" % (self.client_address[0], self.client_address[1])
+            logging.info('[%d/%d] ==> %s' % (connected, MAX_CON, self.conn_str))
             sock = self.connection
             sock.recv(262)
             self.send_encrpyt(sock, "\x05\x00")
@@ -106,7 +113,8 @@ class Socks5Server(SocketServer.StreamRequestHandler):
                     remote.connect((addr, port[0]))
                     local = remote.getsockname()
                     reply += socket.inet_aton(local[0]) + struct.pack(">H", local[1])
-                    logging.debug('Tcp connect to' + str(addr) + str(port[0]))
+                    self.conn_str += "<==>%s:%d" % (addr, port[0])
+                    logging.debug(self.conn_str)
                 else:
                     reply = "\x05\x07\x00\x01"  # Command not supported
                     logging.error('command not supported')
@@ -119,12 +127,14 @@ class Socks5Server(SocketServer.StreamRequestHandler):
                     self.handle_tcp(sock, remote)
         except socket.error, e:
             logging.error('socket error: ' + str(e))
+        finally:
+            connected -= 1
 
 
 def main(host=''):
     server = ThreadingTCPServer((host, PORT), Socks5Server)
     server.allow_reuse_address = True
-    server.request_queue_size = 20
+    server.request_queue_size = MAX_CON
     logging.info("starting server at port %d ..." % PORT)
     server.serve_forever()
 
