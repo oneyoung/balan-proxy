@@ -20,48 +20,44 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-import sys
-import socket
-import select
-import SocketServer
 import struct
 import string
-import hashlib
 import logging
+from gevent import socket
+from gevent import select
+from gevent.server import StreamServer
 
 MAX_CON = 20
 connected = 0
 
 
-def load_conf(conf_fname):
-    import json
-    global PORT
-    global KEY
+class Codec:
+    def __init__(self, key):
+        self._encrypt_table = ''.join(self._hash_table(key))
+        self._decrypt_table = string.maketrans(self._encrypt_table,
+                                               string.maketrans('', ''))
 
-    f = open(conf_fname)
-    conf = json.load(f, encoding='utf-8')
-    PORT = conf['port']
-    KEY = conf['key']
-    f.close()
+    @staticmethod
+    def _hash_table(key):
+        import hashlib
+        m = hashlib.md5()
+        m.update(key)
+        s = m.digest()
+        (a, b) = struct.unpack('<QQ', s)
+        table = [c for c in string.maketrans('', '')]
+        for i in xrange(1, 1024):
+            table.sort(lambda x, y: int(a % (ord(x) + i) - a % (ord(y) + i)))
+        return table
 
+    def encrypt(self, data):
+        return data.translate(self._encrypt_table)
 
-def get_table(key):
-    m = hashlib.md5()
-    m.update(key)
-    s = m.digest()
-    (a, b) = struct.unpack('<QQ', s)
-    table = [c for c in string.maketrans('', '')]
-    for i in xrange(1, 1024):
-        table.sort(lambda x, y: int(a % (ord(x) + i) - a % (ord(y) + i)))
-    return table
-
-
-class ThreadingTCPServer(SocketServer.ThreadingMixIn, SocketServer.TCPServer):
-    pass
+    def decrypt(self, data):
+        return data.translate(self._decrypt_table)
 
 
-class Socks5Server(SocketServer.StreamRequestHandler):
-    def handle_tcp(self, sock, remote):
+class ServerHandler(Codec):
+    def handle_tcp(self, sock, remote, sock_str=''):
         try:
             fdset = [sock, remote]
             while True:
@@ -74,38 +70,44 @@ class Socks5Server(SocketServer.StreamRequestHandler):
                         break
         finally:
             remote.close()
-            logging.info('[%d/%d] <== %s' % (connected, MAX_CON, self.conn_str))
-
-    def encrypt(self, data):
-        return data.translate(encrypt_table)
-
-    def decrypt(self, data):
-        return data.translate(decrypt_table)
+            logging.info('[%d/%d] <== %s' % (connected, MAX_CON, sock_str))
 
     def send_encrpyt(self, sock, data):
         sock.send(self.encrypt(data))
 
-    def handle(self):
+    def read_socket(self, sock, size):
+        remain = size
+        buf = ''
+        retry = 0
+        while remain > 0:
+            buf += sock.recv(remain)
+            remain = size - len(buf)
+            retry += 1
+        return buf
+
+    def handle(self, sock, address):
         global connected
         try:
             connected += 1
-            self.conn_str = "%s:%d" % (self.client_address[0], self.client_address[1])
-            logging.info('[%d/%d] ==> %s' % (connected, MAX_CON, self.conn_str))
-            sock = self.connection
-            sock.recv(262)
+            sock_str = "%s:%d" % (address[0], address[1])
+            logging.info('[%d/%d] ==> %s' % (connected, MAX_CON, sock_str))
+            import StringIO
+            header = self.read_socket(sock, 262)
+            print repr(header)
+            rfile = StringIO.StringIO(header)
             self.send_encrpyt(sock, "\x05\x00")
-            data = self.decrypt(self.rfile.read(4))
+            data = self.decrypt(rfile.read(4))
             mode = ord(data[1])
             addrtype = ord(data[3])
             if addrtype == 1:
-                addr = socket.inet_ntoa(self.decrypt(self.rfile.read(4)))
+                addr = socket.inet_ntoa(self.decrypt(rfile.read(4)))
             elif addrtype == 3:
                 addr = self.decrypt(
-                    self.rfile.read(ord(self.decrypt(sock.recv(1)))))
+                    rfile.read(ord(self.decrypt(sock.recv(1)))))
             else:
                 # not support
                 return
-            port = struct.unpack('>H', self.decrypt(self.rfile.read(2)))
+            port = struct.unpack('>H', self.decrypt(rfile.read(2)))
             reply = "\x05\x00\x00\x01"
             try:
                 if mode == 1:
@@ -113,8 +115,8 @@ class Socks5Server(SocketServer.StreamRequestHandler):
                     remote.connect((addr, port[0]))
                     local = remote.getsockname()
                     reply += socket.inet_aton(local[0]) + struct.pack(">H", local[1])
-                    self.conn_str += "<==>%s:%d" % (addr, port[0])
-                    logging.debug(self.conn_str)
+                    sock_str += "<==>%s:%d" % (addr, port[0])
+                    logging.debug(sock_str)
                 else:
                     reply = "\x05\x07\x00\x01"  # Command not supported
                     logging.error('command not supported')
@@ -124,33 +126,25 @@ class Socks5Server(SocketServer.StreamRequestHandler):
             self.send_encrpyt(sock, reply)
             if reply[1] == '\x00':
                 if mode == 1:
-                    self.handle_tcp(sock, remote)
+                    self.handle_tcp(sock, remote, sock_str)
         except socket.error, e:
             logging.error('socket error: ' + str(e))
         finally:
             connected -= 1
 
 
-def main(host=''):
-    server = ThreadingTCPServer((host, PORT), Socks5Server)
-    server.allow_reuse_address = True
-    server.request_queue_size = MAX_CON
-    logging.info("starting server at port %d ..." % PORT)
-    server.serve_forever()
+def load_config(fname):
+    import json
+
+    config = json.load(open(fname), encoding='utf-8')
+    return config
 
 
 if __name__ == '__main__':
-    load_conf('config.json')
-    encrypt_table = ''.join(get_table(KEY))
-    decrypt_table = string.maketrans(encrypt_table, string.maketrans('', ''))
     # logging init
-    logging.basicConfig(filename="/tmp/proxy.log", level=logging.DEBUG,
+    logging.basicConfig(filename="/tmp/proxy_server.log", level=logging.DEBUG,
                         format='%(asctime)s %(levelname)s: %(message)s')
-    arg = sys.argv
-    if len(arg) == 1:
-        host = ''
-        logging.info("Use default host")
-    else:
-        host = arg[1]
-        logging.info("Use host %s" % host)
-    main(host)
+    config = load_config('config.json')
+    handler = ServerHandler(config.get('key'))
+    server = StreamServer(('127.0.0.1', int(config.get('port'))), handler.handle)
+    server.serve_forever()
