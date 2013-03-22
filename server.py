@@ -75,39 +75,26 @@ class ServerHandler(Codec):
     def send_encrpyt(self, sock, data):
         sock.send(self.encrypt(data))
 
-    def read_socket(self, sock, size):
-        remain = size
-        buf = ''
-        retry = 0
-        while remain > 0:
-            buf += sock.recv(remain)
-            remain = size - len(buf)
-            retry += 1
-        return buf
-
     def handle(self, sock, address):
         global connected
         try:
             connected += 1
             sock_str = "%s:%d" % (address[0], address[1])
             logging.info('[%d/%d] ==> %s' % (connected, MAX_CON, sock_str))
-            import StringIO
-            header = self.read_socket(sock, 262)
-            print repr(header)
-            rfile = StringIO.StringIO(header)
-            self.send_encrpyt(sock, "\x05\x00")
-            data = self.decrypt(rfile.read(4))
+            sock.recv(3)  # recv 3 bytes version id/method selection msg
+            self.send_encrpyt(sock, "\x05\x00")  # reply version + No Auth
+            data = self.decrypt(sock.recv(4))
             mode = ord(data[1])
             addrtype = ord(data[3])
             if addrtype == 1:
-                addr = socket.inet_ntoa(self.decrypt(rfile.read(4)))
+                addr = socket.inet_ntoa(self.decrypt(sock.recv(4)))
             elif addrtype == 3:
                 addr = self.decrypt(
-                    rfile.read(ord(self.decrypt(sock.recv(1)))))
+                    sock.recv(ord(self.decrypt(sock.recv(1)))))
             else:
                 # not support
                 return
-            port = struct.unpack('>H', self.decrypt(rfile.read(2)))
+            port = struct.unpack('>H', self.decrypt(sock.recv(2)))
             reply = "\x05\x00\x00\x01"
             try:
                 if mode == 1:
