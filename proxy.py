@@ -169,15 +169,43 @@ class LocalHandler():
 
 
 def start_server(port, key):
-    logging.basicConfig(filename="/tmp/proxy_server_%s.log" % port, level=logging.DEBUG,
+    logging.basicConfig(filename="/tmp/proxy_server_%s.log" % port, level=logging.WARNING,
                         format='%(asctime)s %(levelname)s: %(message)s')
     handler = ServerHandler(key)
+    logging.info("Listen to port: %s" % port)
     server = StreamServer(('127.0.0.1', int(port)), handler.handle)
     server.serve_forever()
 
 
-def start_local(port, config):
-    pass
+def start_local(config):
+    import sys
+    logging.basicConfig(stream=sys.stdout, level=logging.DEBUG,
+                        format='%(asctime)s %(levelname)s: %(message)s')
+
+    from ConfigParser import ConfigParser
+    parser = ConfigParser()
+    parser.read(config)
+    listen_port = parser.getint('local', 'listen_port')
+
+    handler = LocalHandler()
+    for section in parser.sections():
+        if section == 'local':
+            continue
+        try:
+            host = parser.get(section, 'host')
+            port = parser.getint(section, 'port')
+            key = parser.get(section, 'key')
+        except:
+            logging.warning("invalid proxy config: %s" % section)
+            logging.warning(parser.items(section))
+            continue
+        logging.info("add server: %s:%s" % (host, port))
+        handler.add_server((host, port), key)
+
+    logging.info("Listen to port: %s" % listen_port)
+    server = StreamServer(('127.0.0.1', listen_port), handler.handle)
+    server.serve_forever()
+
 
 if __name__ == '__main__':
     from optparse import OptionParser
@@ -190,16 +218,11 @@ if __name__ == '__main__':
     parser.add_option('-c', '--config', dest='config', default='config.ini',
                       help="config file for local mode, default: config.ini",
                       metavar='FILE')
-    parser.add_option('-p', '--port', dest='port', default=8888,
-                      help="config file for local mode, default: 8888",
-                      metavar='NUM')
+
     (options, args) = parser.parse_args()
     if options.server:
         port, key = args[-2:]
-        print "start server"
         start_server(int(port), key)
     else:
-        port = int(options.port)
         config = options.config
-        print "start local"
-        start_local(port, config)
+        start_local(config)
