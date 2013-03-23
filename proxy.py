@@ -64,11 +64,17 @@ class ServerHandler(Codec):
             while True:
                 r, w, e = select.select(fdset, [], [])
                 if sock in r:
-                    if remote.send(self.decrypt(sock.recv(4096))) <= 0:
-                        break
+                    try:
+                        if remote.send(self.decrypt(sock.recv(4096))) <= 0:
+                            break
+                    except socket.error, e:
+                        logging.error(sock_str + " remote send error: " + str(e))
                 if remote in r:
-                    if sock.send(self.encrypt(remote.recv(4096))) <= 0:
-                        break
+                    try:
+                        if sock.send(self.encrypt(remote.recv(4096))) <= 0:
+                            break
+                    except socket.error, e:
+                        logging.error(sock_str + " sock send error: " + str(e))
         finally:
             remote.close()
             logging.info('[%d] <== %s' % (self.active_num, sock_str))
@@ -109,14 +115,14 @@ class ServerHandler(Codec):
                     logging.error('command not supported')
             except socket.error, e:
                 # Connection refused
-                logging.error(sock_str + 'remote conn fail: ' + str(e))
+                logging.error(sock_str + ' remote conn fail: ' + str(e))
                 reply = '\x05\x05\x00\x01\x00\x00\x00\x00\x00\x00'
             self.send_encrpyt(sock, reply)
             if reply[1] == '\x00':
                 if mode == 1:
                     self.handle_tcp(sock, remote, sock_str)
         except Exception, e:
-            logging.error(sock_str + 'socket error: ' + str(e))
+            logging.error(sock_str + ' socket error: ' + str(e))
         finally:
             self.active_num -= 1
 
