@@ -173,7 +173,7 @@ def start_server(port, key):
                         format='%(asctime)s %(levelname)s: %(message)s')
     handler = ServerHandler(key)
     logging.info("Listen to port: %s" % port)
-    server = StreamServer(('127.0.0.1', int(port)), handler.handle)
+    server = StreamServer(('0.0.0.0', int(port)), handler.handle)
     server.serve_forever()
 
 
