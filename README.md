@@ -30,6 +30,7 @@ The config file typically looks like below.
 
 1. `local` section is required, and need to specify `listen_port`
 2. More than one proxy sever is allowed.
+
 ```
 [local]
 # requred
