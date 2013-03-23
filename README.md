@@ -1,43 +1,55 @@
-增加自定义服务器列表支持，请将服务器地址列表放在同文件夹下，文件名： list.txt
-格式: 
+## Introduction
+This is a Socks5 proxy written in python and forked from balan-proxy project.
 
-	8.8.8.8:8499
-	4.4.4.4:8499
-	#1.1.1.1:8849
+## Features
+1. Use gevent instead of Threading Server.
+2. Support multiple servers, you can easily add them in config file.
+3. support simple encrypt, to avoid being blocked by GFW.
+4. merge both local and server in only one file.
 
-暂时不使用的服务器地址可使用#注释
------------
-本程序fork自shadowsocks。增加对多个服务端的支持，如果在限制带宽的内网使用，可达到多倍带宽的效果。在下载http资源，及播放在线视频时有显著加速功能。
+## Usage
+### Server
+The way to start a server:
+```bash
+python proxy.py -s PORT KEY
+```
+For example, the below will setup a socks5 server, that listen to port 6789, and use encrypt key "foobar!".
+```bash
+python proxy.py -s 6789 foobar!
+```
 
-I forked this  project, and try to update it so it can connect to multi-servers, so I can use more bandwidth,
-I hope it can take effects, ^_~
-2012.4.21 00:00
------------
-shadowsocks
-===========
+### Local
+#### config file
+The local proxy service depends on a config file to determine:
+1. which port to listen
+2. how many servers can connect to
 
-shadowsocks is a lightweight tunnel proxy which can help you get through firewalls
+The config file typically looks like below.
+1. `local` section is required, and need to specify `listen_port`
+2. More than one proxy sever is allowed.
+```
+[local]
+# requred
+listen_port=8888
 
-usage
------------
+[proxy1]
+host=your-proxy1.com
+port=1234
+key=foobar!
 
-Put `server.py` on your server. Edit `server.py`, change the following values:
+[proxy2]
+host=your-proxy2.com
+port=2345
+```
 
-    PORT          server port
-    KEY           a password to identify clients
+#### run a local server.
+Syntax:
+```bash
+python proxy.py [-c config]
+```
+Defalt the script will take "config.ini" as the default config file.
+But you can use another file with `-c` option.
 
-Run `python server.py` on your server. To run it in the background, run `setsid python server.py`.
-
-Put `local.py` on your client machine. Edit `local.py`, change these values:
-
-    SERVER  your  your server ip or hostname
-    REMOTE_PORT   server port
-    PORT          local port
-    KEY           a password, it must be the same as the password of your server
-
-Run `python local.py` on your client machine.
-
-Change proxy settings of your browser into
-
-    SOCKS5 127.0.0.1:PORT
-
+#### use the proxy.
+1. make sure the proxy type is `socks5`
+2. point proxy server to `127.0.0.1` and port as `LISTEN_PORT` (the value of `listen_port`)
