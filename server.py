@@ -27,9 +27,6 @@ from gevent import socket
 from gevent import select
 from gevent.server import StreamServer
 
-MAX_CON = 20
-connected = 0
-
 
 class Codec:
     def __init__(self, key):
@@ -57,6 +54,10 @@ class Codec:
 
 
 class ServerHandler(Codec):
+    def __init__(self, *args):
+        self.active_num = 0
+        Codec.__init__(self, *args)
+
     def handle_tcp(self, sock, remote, sock_str=''):
         try:
             fdset = [sock, remote]
@@ -70,17 +71,16 @@ class ServerHandler(Codec):
                         break
         finally:
             remote.close()
-            logging.info('[%d/%d] <== %s' % (connected, MAX_CON, sock_str))
+            logging.info('[%d] <== %s' % (self.active_num, sock_str))
 
     def send_encrpyt(self, sock, data):
         sock.send(self.encrypt(data))
 
     def handle(self, sock, address):
-        global connected
         try:
-            connected += 1
+            self.active_num += 1
             sock_str = "%s:%d" % (address[0], address[1])
-            logging.info('[%d/%d] ==> %s' % (connected, MAX_CON, sock_str))
+            logging.info('[%d] ==> %s' % (self.active_num, sock_str))
             sock.recv(3)  # recv 3 bytes version id/method selection msg
             self.send_encrpyt(sock, "\x05\x00")  # reply version + No Auth
             data = self.decrypt(sock.recv(4))
@@ -117,7 +117,42 @@ class ServerHandler(Codec):
         except socket.error, e:
             logging.error('socket error: ' + str(e))
         finally:
-            connected -= 1
+            self.active_num -= 1
+
+
+class LocalHandler(Codec):
+    def handle_tcp(self, sock, remote):
+        try:
+            fdset = [sock, remote]
+            counter = 0
+            while True:
+                r, w, e = select.select(fdset, [], [])
+                if sock in r:
+                    r_data = sock.recv(4096)
+                    if counter == 1:
+                        try:
+                            logging.info(
+                                "Connecting " + r_data[5:5 + ord(r_data[4])])
+                        except Exception:
+                            pass
+                    if counter < 2:
+                        counter += 1
+                    if remote.send(self.encrypt(r_data)) <= 0:
+                        break
+                if remote in r:
+                    if sock.send(self.decrypt(remote.recv(4096))) <= 0:
+                        break
+        finally:
+            remote.close()
+
+    def handle(self, sock, address):
+        try:
+            host = ('127.0.0.1', 8888)
+            remote = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            remote.connect(host)
+            self.handle_tcp(sock, remote)
+        except socket.error, e:
+            logging.error('socket error: ' + str(e))
 
 
 def load_config(fname):
