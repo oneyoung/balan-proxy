@@ -168,18 +168,38 @@ class LocalHandler():
             logging.error(str(host) + ' socket error: ' + str(e))
 
 
-def load_config(fname):
-    import json
+def start_server(port, key):
+    logging.basicConfig(filename="/tmp/proxy_server_%s.log" % port, level=logging.DEBUG,
+                        format='%(asctime)s %(levelname)s: %(message)s')
+    handler = ServerHandler(key)
+    server = StreamServer(('127.0.0.1', int(port)), handler.handle)
+    server.serve_forever()
 
-    config = json.load(open(fname), encoding='utf-8')
-    return config
 
+def start_local(port, config):
+    pass
 
 if __name__ == '__main__':
-    # logging init
-    logging.basicConfig(filename="/tmp/proxy_server.log", level=logging.DEBUG,
-                        format='%(asctime)s %(levelname)s: %(message)s')
-    config = load_config('config.json')
-    handler = ServerHandler(config.get('key'))
-    server = StreamServer(('127.0.0.1', int(config.get('port'))), handler.handle)
-    server.serve_forever()
+    from optparse import OptionParser
+    usage = '''usage:
+        as server: %prog -s PORT KEY
+        as local : %prog [OPTIONS] '''
+    parser = OptionParser(usage=usage)
+    parser.add_option('-s', '--server', dest='server', default=False,
+                      action="store_true", help="Proxy run as a server")
+    parser.add_option('-c', '--config', dest='config', default='config.ini',
+                      help="config file for local mode, default: config.ini",
+                      metavar='FILE')
+    parser.add_option('-p', '--port', dest='port', default=8888,
+                      help="config file for local mode, default: 8888",
+                      metavar='NUM')
+    (options, args) = parser.parse_args()
+    if options.server:
+        port, key = args[-2:]
+        print "start server"
+        start_server(int(port), key)
+    else:
+        port = int(options.port)
+        config = options.config
+        print "start local"
+        start_local(port, config)
