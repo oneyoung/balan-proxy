@@ -107,15 +107,16 @@ class ServerHandler(Codec):
                 else:
                     reply = "\x05\x07\x00\x01"  # Command not supported
                     logging.error('command not supported')
-            except socket.error:
+            except socket.error, e:
                 # Connection refused
+                logging.error(sock_str + 'remote conn fail: ' + str(e))
                 reply = '\x05\x05\x00\x01\x00\x00\x00\x00\x00\x00'
             self.send_encrpyt(sock, reply)
             if reply[1] == '\x00':
                 if mode == 1:
                     self.handle_tcp(sock, remote, sock_str)
-        except socket.error, e:
-            logging.error('socket error: ' + str(e))
+        except Exception, e:
+            logging.error(sock_str + 'socket error: ' + str(e))
         finally:
             self.active_num -= 1
 
