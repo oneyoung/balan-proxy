@@ -2,6 +2,7 @@
 This is a Socks5 proxy written in python and forked from balan-proxy project.
 
 ## Features
+
 1. Use gevent instead of Threading Server.
 2. Support multiple servers, you can easily add them in config file.
 3. support simple encrypt, to avoid being blocked by GFW.
@@ -21,10 +22,12 @@ python proxy.py -s 6789 foobar!
 ### Local
 #### config file
 The local proxy service depends on a config file to determine:
+
 1. which port to listen
 2. how many servers can connect to
 
 The config file typically looks like below.
+
 1. `local` section is required, and need to specify `listen_port`
 2. More than one proxy sever is allowed.
 ```
@@ -51,5 +54,6 @@ Defalt the script will take "config.ini" as the default config file.
 But you can use another file with `-c` option.
 
 #### use the proxy.
+
 1. make sure the proxy type is `socks5`
 2. point proxy server to `127.0.0.1` and port as `LISTEN_PORT` (the value of `listen_port`)
