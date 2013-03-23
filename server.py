@@ -120,8 +120,21 @@ class ServerHandler(Codec):
             self.active_num -= 1
 
 
-class LocalHandler(Codec):
-    def handle_tcp(self, sock, remote):
+class LocalHandler():
+    def __init__(self):
+        self._servers = []
+
+    def add_server(self, addr, key):
+        self._servers.append((addr, Codec(key)))
+
+    def _pick_server(self):
+        import random
+        servers = self._servers
+        index = random.randint(0, len(servers) - 1)
+        host, codec = servers[index]
+        return (host, codec)
+
+    def _handle_tcp(self, sock, remote, codec):
         try:
             fdset = [sock, remote]
             counter = 0
@@ -137,22 +150,22 @@ class LocalHandler(Codec):
                             pass
                     if counter < 2:
                         counter += 1
-                    if remote.send(self.encrypt(r_data)) <= 0:
+                    if remote.send(codec.encrypt(r_data)) <= 0:
                         break
                 if remote in r:
-                    if sock.send(self.decrypt(remote.recv(4096))) <= 0:
+                    if sock.send(codec.decrypt(remote.recv(4096))) <= 0:
                         break
         finally:
             remote.close()
 
     def handle(self, sock, address):
         try:
-            host = ('127.0.0.1', 8888)
+            host, codec = self._pick_server()
             remote = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             remote.connect(host)
-            self.handle_tcp(sock, remote)
+            self._handle_tcp(sock, remote, codec)
         except socket.error, e:
-            logging.error('socket error: ' + str(e))
+            logging.error(str(host) + ' socket error: ' + str(e))
 
 
 def load_config(fname):
